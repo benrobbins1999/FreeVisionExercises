@@ -1,2 +1,2 @@
 # FreeVisionExercises
-This is website to democratize vision exercises. 
+This is a website to democratize vision exercises. 
