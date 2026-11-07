@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vergence Box Trainer</title>
+<meta name="description" content="Free red/blue anaglyph random-dot exercise for convergence practice.">
+<style>
+  :root {
+    --bg: #000;
+    --panel: #111;
+    --line: #2a2a2a;
+    --text: #d8d8d8;
+    --muted: #8a8a8a;
+    --accent: #e6e6e6;
+    --good: #7fd67f;
+    --bad: #e0a050;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .stats { display: flex; gap: 16px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+  .stats b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #stage { flex: 1; position: relative; min-height: 0; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #feedback {
+    position: absolute; left: 0; right: 0; bottom: 8px;
+    text-align: center; font-size: 14px; min-height: 20px; pointer-events: none;
+  }
+  #feedback.good { color: var(--good); }
+  #feedback.bad { color: var(--bad); }
+  footer {
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    padding: 10px 16px 14px; border-top: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .pad {
+    display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); gap: 6px;
+  }
+  .pad button[data-dir="up"] { grid-column: 2; grid-row: 1; }
+  .pad button[data-dir="left"] { grid-column: 1; grid-row: 2; }
+  .pad button[data-dir="down"] { grid-column: 2; grid-row: 2; }
+  .pad button[data-dir="right"] { grid-column: 3; grid-row: 2; }
+  button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: #555; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #888; outline-offset: 2px; }
+  .pad button { font-size: 20px; }
+  .actions { display: flex; gap: 8px; }
+  .actions button { padding: 8px 14px; }
+  details { color: var(--muted); font-size: 13px; }
+  details summary { cursor: pointer; }
+  .settings { display: grid; grid-template-columns: auto auto; gap: 8px 12px; margin-top: 8px; align-items: center; }
+  select, input[type=number] {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 6px; font: inherit;
+  }
+  input[type=number] { width: 70px; }
+
+  #intro {
+    position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  }
+  #intro[hidden] { display: none; }
+  .card {
+    max-width: 560px; width: 100%; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 24px; max-height: 100%; overflow: auto;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 20px; color: var(--accent); }
+  .card ol { padding-left: 20px; margin: 0 0 16px; }
+  .card li { margin-bottom: 6px; }
+  .card .note { color: var(--muted); font-size: 13px; border-left: 2px solid #444; padding-left: 10px; margin: 0 0 18px; }
+  .card button { padding: 10px 20px; font-weight: 600; background: #222; }
+  kbd { border: 1px solid #444; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    header { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .pad { grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vergence Box Trainer</h1>
+  <div class="stats" aria-live="polite">
+    <span>Separation <b id="sSep">0</b></span>
+    <span>Best <b id="sBest">0</b></span>
+    <span>Correct <b id="sCorrect">0</b>/<b id="sTotal">0</b></span>
+  </div>
+</header>
+
+<div id="stage">
+  <canvas id="view" aria-label="Red and blue random-dot boxes. Find the raised square and press the matching arrow key."></canvas>
+  <div id="feedback" aria-live="polite"></div>
+</div>
+
+<footer>
+  <div class="pad" role="group" aria-label="Answer buttons">
+    <button data-dir="up" aria-label="Top">▲</button>
+    <button data-dir="left" aria-label="Left">◀</button>
+    <button data-dir="down" aria-label="Bottom">▼</button>
+    <button data-dir="right" aria-label="Right">▶</button>
+  </div>
+  <div>
+    <div class="actions">
+      <button id="btnReset">Reset</button>
+      <button id="btnHelp">Instructions</button>
+    </div>
+    <details>
+      <summary>Settings</summary>
+      <div class="settings">
+        <label for="optGlasses">Glasses</label>
+        <select id="optGlasses">
+          <option value="redLeft">Red lens on left eye</option>
+          <option value="redRight">Red lens on right eye</option>
+        </select>
+        <label for="optMode">Training</label>
+        <select id="optMode">
+          <option value="converge">Convergence (eyes cross in)</option>
+          <option value="diverge">Divergence (eyes relax out)</option>
+        </select>
+        <label for="optStep">Step size</label>
+        <input id="optStep" type="number" min="1" max="10" step="1">
+        <label for="optDepth">3D depth</label>
+        <input id="optDepth" type="number" min="1" max="6" step="1">
+      </div>
+    </details>
+  </div>
+</footer>
+
+<div id="intro">
+  <div class="card" role="dialog" aria-labelledby="introTitle">
+    <h2 id="introTitle">How to use</h2>
+    <ol>
+      <li>Put on red/blue 3D glasses. By default the <b>red lens goes over the left eye</b> (you can change this in Settings).</li>
+      <li>Sit about an arm's length from the screen, with the screen at eye level.</li>
+      <li>Look at the purple box. A smaller square will seem to float toward you near the <b>top, bottom, left or right</b>.</li>
+      <li>Press the matching arrow key <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> (or tap the buttons).</li>
+      <li>Right answers pull the red and blue boxes apart. Wrong answers bring them closer together. Try to keep seeing <b>one</b> box as they separate.</li>
+    </ol>
+    <p class="note">
+      This is a practice tool, not a diagnosis or a replacement for care from an eye doctor or vision therapist.
+      Follow the schedule your clinician gives you. Short sessions (about 5–10 minutes) are typical.
+      Stop and rest if you get a headache, eye strain, dizziness or double vision that won't go away.
+    </p>
+    <button id="btnStart">Start</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Pattern geometry, in grid cells
+  const GRID = 80;         // outer box is GRID x GRID cells
+  const INNER = 24;        // hidden inner square size
+  const EDGE = 8;          // inner square's distance from the outer edge
+  const DENSITY = 0.5;     // chance a cell is filled
+
+  // Colors chosen so red + blue (added together) give purple, as in the examples
+  const RED = [142, 18, 16];
+  const BLUE = [0, 0, 255];
+
+  const DIRS = ["up", "down", "left", "right"];
+  const LABELS = { up: "top", down: "bottom", left: "left", right: "right" };
+
+  const canvas = document.getElementById("view");
+  const ctx = canvas.getContext("2d");
+  const feedback = document.getElementById("feedback");
+  const intro = document.getElementById("intro");
+
+  const settings = { glasses: "redLeft", mode: "converge", step: 2, depth: 2 };
+  try {
+    Object.assign(settings, JSON.parse(localStorage.getItem("vergenceSettings") || "{}"));
+  } catch (e) {}
+
+  const state = {
+    separation: 0,  // cells between the two boxes' centers
+    best: 0,
+    correct: 0,
+    total: 0,
+    target: null,   // which of DIRS holds the raised square
+    redImg: null,
+    blueImg: null,
+    locked: false,
+    started: false,
+  };
+
+  // Layout, recomputed on resize
+  let cellPx = 4;   // device pixels per cell
+  let maxSep = 0;
+
+  function saveSettings() {
+    try { localStorage.setItem("vergenceSettings", JSON.stringify(settings)); } catch (e) {}
+  }
+
+  function randomGrid() {
+    const g = new Uint8Array(GRID * GRID);
+    for (let i = 0; i < g.length; i++) g[i] = Math.random() < DENSITY ? 1 : 0;
+    return g;
+  }
+
+  function innerOrigin(dir) {
+    const mid = Math.round((GRID - INNER) / 2);
+    switch (dir) {
+      case "up": return [mid, EDGE];
+      case "down": return [mid, GRID - EDGE - INNER];
+      case "left": return [EDGE, mid];
+      case "right": return [GRID - EDGE - INNER, mid];
+    }
+  }
+
+  // Classic random-dot stereogram: both eyes get the same dots, except the inner
+  // square is shifted sideways in the left eye's image. The strip it uncovers is
+  // refilled with fresh random dots so the square can't be seen with one eye.
+  function makeStereoPair(dir) {
+    const right = randomGrid();
+    const left = right.slice();
+    const d = settings.depth;
+    const [x0, y0] = innerOrigin(dir);
+    for (let y = y0; y < y0 + INNER; y++) {
+      for (let x = x0; x < x0 + d; x++) left[y * GRID + x] = Math.random() < DENSITY ? 1 : 0;
+      for (let x = x0; x < x0 + INNER; x++) left[y * GRID + x + d] = right[y * GRID + x];
+    }
+    return { left, right };
+  }
+
+  function gridToCanvas(grid, rgb) {
+    const c = document.createElement("canvas");
+    c.width = c.height = GRID;
+    const cx = c.getContext("2d");
+    const img = cx.createImageData(GRID, GRID);
+    for (let i = 0; i < grid.length; i++) {
+      if (!grid[i]) continue;   // empty cells stay transparent
+      img.data[i * 4] = rgb[0];
+      img.data[i * 4 + 1] = rgb[1];
+      img.data[i * 4 + 2] = rgb[2];
+      img.data[i * 4 + 3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  function newTrial() {
+    state.target = DIRS[Math.floor(Math.random() * 4)];
+    const { left, right } = makeStereoPair(state.target);
+    const redIsLeft = settings.glasses === "redLeft";
+    state.redImg = gridToCanvas(redIsLeft ? left : right, RED);
+    state.blueImg = gridToCanvas(redIsLeft ? right : left, BLUE);
+    draw();
+  }
+
+  function layout() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    const pad = 16 * dpr;
+    const boxTarget = Math.min(canvas.height - pad * 2 - 24 * dpr, (canvas.width - pad * 2) * 0.6);
+    cellPx = Math.max(1, Math.floor(boxTarget / GRID));
+    const box = cellPx * GRID;
+    maxSep = Math.max(0, Math.floor((canvas.width - pad * 2 - box) / cellPx));
+    if (state.separation > maxSep) state.separation = maxSep;
+    draw();
+  }
+
+  function draw() {
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!state.redImg) return;
+
+    const box = cellPx * GRID;
+    const cx = Math.floor(canvas.width / 2);
+    const top = Math.floor((canvas.height - box) / 2);
+    const half = state.separation * cellPx / 2;
+
+    // For convergence practice the left eye's box sits to the right (crossed disparity).
+    const leftEyeShift = settings.mode === "converge" ? half : -half;
+    const redIsLeft = settings.glasses === "redLeft";
+    const redX = Math.round(cx - box / 2 + (redIsLeft ? leftEyeShift : -leftEyeShift));
+    const blueX = Math.round(cx - box / 2 - (redIsLeft ? leftEyeShift : -leftEyeShift));
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalCompositeOperation = "lighter";   // red + blue overlap adds up to purple
+    ctx.drawImage(state.redImg, redX, top, box, box);
+    ctx.drawImage(state.blueImg, blueX, top, box, box);
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  function updateStats() {
+    document.getElementById("sSep").textContent = state.separation;
+    document.getElementById("sBest").textContent = state.best;
+    document.getElementById("sCorrect").textContent = state.correct;
+    document.getElementById("sTotal").textContent = state.total;
+  }
+
+  let feedbackTimer;
+  function showFeedback(text, cls) {
+    feedback.textContent = text;
+    feedback.className = cls;
+    clearTimeout(feedbackTimer);
+    feedbackTimer = setTimeout(() => { feedback.textContent = ""; feedback.className = ""; }, 1600);
+  }
+
+  function answer(dir) {
+    if (!state.started || state.locked) return;
+    state.locked = true;
+    state.total++;
+    if (dir === state.target) {
+      state.correct++;
+      const next = Math.min(maxSep, state.separation + settings.step);
+      showFeedback(next > state.separation ? "Correct, moving apart" : "Correct. This is the widest that fits on this screen", "good");
+      state.separation = next;
+      state.best = Math.max(state.best, state.separation);
+    } else {
+      state.separation = Math.max(0, state.separation - settings.step);
+      showFeedback(`It was on the ${LABELS[state.target]}. Moving closer`, "bad");
+    }
+    updateStats();
+    newTrial();
+    // Short pause so a held or double-pressed key doesn't answer the next pattern too
+    setTimeout(() => { state.locked = false; }, 350);
+  }
+
+  function reset() {
+    Object.assign(state, { separation: 0, best: 0, correct: 0, total: 0 });
+    updateStats();
+    newTrial();
+  }
+
+  function start() {
+    intro.hidden = true;
+    state.started = true;
+    canvas.focus();
+  }
+
+  const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+  window.addEventListener("keydown", (e) => {
+    if (!intro.hidden) {
+      if (e.key === "Enter" || e.key === " " || KEYS[e.key]) { e.preventDefault(); start(); }
+      return;
+    }
+    if (KEYS[e.key] && !(e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement)) {
+      e.preventDefault();
+      if (!e.repeat) answer(KEYS[e.key]);
+    }
+  });
+
+  document.querySelectorAll(".pad button").forEach((b) =>
+    b.addEventListener("click", () => answer(b.dataset.dir)));
+  document.getElementById("btnStart").addEventListener("click", start);
+  document.getElementById("btnReset").addEventListener("click", reset);
+  document.getElementById("btnHelp").addEventListener("click", () => {
+    intro.hidden = false;
+    state.started = false;
+  });
+
+  const optGlasses = document.getElementById("optGlasses");
+  const optMode = document.getElementById("optMode");
+  const optStep = document.getElementById("optStep");
+  const optDepth = document.getElementById("optDepth");
+  optGlasses.value = settings.glasses;
+  optMode.value = settings.mode;
+  optStep.value = settings.step;
+  optDepth.value = settings.depth;
+
+  const clampInt = (v, lo, hi, fallback) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+  };
+  optGlasses.addEventListener("change", () => { settings.glasses = optGlasses.value; saveSettings(); newTrial(); });
+  optMode.addEventListener("change", () => { settings.mode = optMode.value; saveSettings(); draw(); });
+  optStep.addEventListener("change", () => {
+    settings.step = clampInt(optStep.value, 1, 10, 2); optStep.value = settings.step; saveSettings();
+  });
+  optDepth.addEventListener("change", () => {
+    settings.depth = clampInt(optDepth.value, 1, 6, 2); optDepth.value = settings.depth; saveSettings(); newTrial();
+  });
+
+  window.addEventListener("resize", layout);
+  newTrial();
+  layout();
+  updateStats();
+})();
+</script>
+</body>
+</html>
